@@ -12,6 +12,23 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/local/sbin
 export PATH
 
 #/*
+# * Function to help
+#*/
+function usage ()
+{
+    echo "Usage: $0 [OPTIONS]"
+    echo "  -u : dist rsync user name"
+    echo "  -s : src file list"
+    echo "  -d : dist rsync module name"
+    echo "  -l : dist host list"
+    echo "  -p : dist rsync or ssh port"
+    echo "  -f : dist rsync password file"
+    echo "  -t : sync type, [rsync|ssh]."
+    echo "  -h : help"
+    echo ""
+}
+
+#/*
 # * Function to check file or directory or string
 # * @arg1 is shell test condition
 # * @arg2 is check object
@@ -35,35 +52,22 @@ function do_rsync()
     [ -z "$1" ] && return 1 || RsyncFiles="$1"
 
     RSYNC_OPTIONS=" -Rtpl --timeout=120"
-    [[ "$RSYNC_PORT" =~ ^[1-9][0-9]*$ ]] && RSYNC_OPTIONS=$RSYNC_OPTIONS" --port=$RSYNC_PORT"
     if [ "rsync" == "$SYNC_TYPE" ]; then 
+        [[ "$RSYNC_PORT" =~ ^[1-9][0-9]*$ ]] && RSYNC_OPTIONS=$RSYNC_OPTIONS" --port=$RSYNC_PORT"
         [ -n "$RSYNC_USER" ] && RSYNC_AUTH=$RSYNC_USER"@"
         [ -f "$RSYNC_PWD_FILE" ] && RSYNC_OPTIONS=$RSYNC_OPTIONS" --password-file=$RSYNC_PWD_FILE"
-        RSYNC_SEND_CMD="$RSYNC $RSYNC_OPTIONS $RsyncFiles ${RSYNC_AUTH}${RSYNC_HOST}::${RSYNC_MODULE}/"
+        $RSYNC $RSYNC_OPTIONS $RsyncFiles ${RSYNC_AUTH}${RSYNC_HOST}::${RSYNC_MODULE}/ || exit 1
     else
         func_check_file n $RSYNC_USER
-        RSYNC_OPTIONS=$RSYNC_OPTIONS" -e ssh "
-        RSYNC_SEND_CMD="$RSYNC $RSYNC_OPTIONS $RsyncFiles ${RSYNC_USER}@${RSYNC_HOST}:${RSYNC_MODULE}"
+        if [[ "$RSYNC_PORT" =~ ^[1-9][0-9]*$ ]]; then
+            $RSYNC $RSYNC_OPTIONS -e "ssh -p $RSYNC_PORT" $RsyncFiles ${RSYNC_USER}@${RSYNC_HOST}:${RSYNC_MODULE} || exit 1
+        else
+            $RSYNC $RSYNC_OPTIONS -e ssh $RsyncFiles ${RSYNC_USER}@${RSYNC_HOST}:${RSYNC_MODULE} || exit 1
+        fi
     fi
-    $RSYNC_SEND_CMD || exit 1
 }
 
-#/*
-# * Function to help
-#*/
-function usage ()
-{
-    echo "Usage: $0 [OPTIONS]"
-    echo "  -u : dist rsync user name"
-    echo "  -s : src file list"
-    echo "  -d : dist rsync module name"
-    echo "  -l : dist host list"
-    echo "  -p : dist rsync or ssh port"
-    echo "  -f : dist rsync password file"
-    echo "  -t : sync type, [rsync|ssh]."
-    echo "  -h : help"
-    echo ""
-}
+
 
 
 #/*
