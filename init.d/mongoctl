@@ -1,0 +1,122 @@
+#! /bin/sh
+#/************************************************************************
+# * Copyright (c) 2012 doujinshuai (doujinshuai@gmail.com)
+# * Create Time  : 2012-04-17
+# * Last Modified : 2012-06-27
+# * Description: MongoDB start script
+# ************************************************************************/
+# */
+
+#/*
+# * set env 
+# */
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+#/*
+# * check running args
+# */
+[ $# -ne 2 ] && { echo -e "Usage: \n\t$0 {start|stop|restart|kill} port\n"; exit 1; }
+Opts=$1
+Port=$2
+
+WorkDir="/db/mongodb"
+DAEMONUSER="mongo"
+DESC="MongoDB"
+DIETIME=10                
+PROG="mongod"
+DAEMON="$WorkDir/bin/$PROG"
+CONF_FILE="$WorkDir/etc/${PROG}_${Port}.conf"
+PID_FILE="$WorkDir/logs/${PROG}_${Port}.pid"
+LOCK_FILE="/var/lock/subsys/redis_$Port"
+
+test -x $DAEMON || exit 0
+
+# * Check if file or directory exist
+# * @arg1 is shel test condition
+# * @arg2 is file or directory name
+#*/
+function func_check_file()
+{
+   type=$1
+   filepath=$2
+   if [ ! -$type "$filepath" ]; then
+   echo "Error: $filepath dont existed; Please check this file path."
+       exit 99
+   fi
+}
+
+function do_start() {
+    cd $WorkDir
+    daemon --user=$DAEMONUSER $DAEMON --fork --port $Port -f $CONF_FILE --pidfilepath $PID_FILE
+    RC=$?
+    echo
+    [ $RC -eq 0 ] && touch $LOCK_FILE
+    return $RC
+}
+
+do_stop() 
+{
+    cd $WorkDir
+    daemon --user=$DAEMONUSER $DAEMON --shutdown --port $Port -f $CONF_FILE
+    RC=$?
+    [ "$RC" -eq 0 ] && success $"$PORG stop success" || failure $"$PORG stop failure"
+    RC=$?
+    [ -f "$PID_FILE" ] && rm -f $PID_FILE
+    RC=$?
+    echo
+    [ $RC -eq 0 ] && rm -f $LOCK_FILE
+    return $RC
+}
+
+do_restart()
+{
+    do_stop
+    do_start
+}
+
+rh_status() {
+    [ -f "$PID_FILE" ] && status -p $PID_FILE $PROG
+}
+
+rh_status_q() {
+    rh_status >/dev/null 2>&1
+}
+
+#/*
+# ************************************
+# ***        Main function         ***
+# ************************************
+# */
+
+#/*
+# * check mongo install
+# */
+func_check_file x $DAEMON
+
+case "$Opts" in
+   start)
+        rh_status_q && exit 0
+        do_start
+        ;;
+   stop)
+#        rh_status_q || exit 0
+        do_stop
+        ;;
+   restart)
+        rh_status_q || exit 0
+        do_restart
+        ;;
+    status)
+        rh_status
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status} Port" >&2
+        exit 3
+        ;;
+esac
+
+exit 0
+

@@ -1,0 +1,164 @@
+#! /bin/sh
+#/************************************************************************
+# * Copyright (c) 2010 doujinshuai (doujinshuai@gmail.com)
+# * Create Time   : 2011-07-14
+# * Last Modified : 2011-07-18
+# * 功能说明: memcached启动脚本
+# ************************************************************************/
+# */
+
+#/*
+# * 设置环境变量
+# */
+function func_init_env() {
+    [ -f "/etc/profile" ] & source /etc/profile
+	IPADDR=$(/sbin/ifconfig -a | /bin/awk '/inet / && /10.|192.|172./ {printf"%s\n",$2}'| /usr/bin/tr -d "addr:")
+	WORKDIR="/usr/local"
+	NAME="memcached"
+	DAEMON="$WORKDIR/bin/$NAME"
+	UserName="www"
+	PORT=11211
+	MemSize=512
+	PIDFILE="/tmp/mc_${PORT}.pid"
+	DESC="memcached daemon"
+	DEBUG=0
+}
+
+#/*
+# * 文件或目录检查函数
+# * @arg1是shell的文件状态检查的参数,具体使用参考shell编程test用法
+# * @arg2是待检查的文件或目录
+#*/
+function func_check_file(){
+	type=$1
+	filepath=$2
+	if [ ! -$type "$filepath" ]; then
+		echo "Error: $filepath dont existed; Please check this file path."
+		exit 99
+	fi 
+}  
+
+
+#/*
+# * 启动MemCached
+# */
+function d_start() {
+	$DAEMON -d -u $UserName -l $IPADDR -p $PORT -c 102400 -m $MemSize -P $PIDFILE || echo " $NAME startup failed!"
+	[ $? -eq 0 ] && echo "$NAME start OK."
+}
+
+#/*
+# *  停止MemCached
+# */
+function d_stop() {
+	if [ -f "$PIDFILE" ]
+	then
+		ProcessTree=$(pstree $(cat $PIDFILE))
+		[ -n "$ProcessTree" ] && kill $(cat $PIDFILE) || echo -n " not running"
+	else
+		MyPid=$(ps axu|grep -v grep|grep $NAME|grep conf|awk '{print $2}')
+		MyPid=$((MyPid+0)) > /dev/null 2>&1
+		[ $MyPid -ge 1 ] && kill $MyPid || echo -n " not running"
+	fi
+	[ $? -eq 0 ] && rm $PIDFILE
+}
+
+#/*
+# * 检查resin运行状态,如果未启动自动拉起
+# */
+function d_pullup() {
+	RunFlag=0
+	DateTime=$(date "+F %T")
+	if [ -f "$PIDFILE" ]
+	then
+		ProcessTree=$(pstree $(cat $PIDFILE))
+		[ -n "$ProcessTree" ] && RunFlag=1
+	else
+		MyPid=$(ps axu|grep -v grep|grep $NAME|grep $PORT|awk '{print $2}')
+		MyPid=$((MyPid+0)) > /dev/null 2>&1
+		[ $MyPid -ge 1 ] && RunFlag=1
+	fi
+
+	if [ $RunFlag -eq 1 ]
+	then
+		[ $DEBUG -eq 1 ] && echo "$DateTime: $NAME already runing."
+	else
+		$DAEMON -d -u $UserName -l $IPADDR -p $PORT -c 102400 -m $MemSize -P $PIDFILE || echo "$DateTime: $NAME startup failed!"
+		[ $? -eq 0 ] && echo "$DateTime: $NAME start OK."
+	fi
+}
+
+
+#/*
+# * 检查MemCached当前状态
+# */
+function d_status() {
+	RunFlag=0
+	if [ -f "$PIDFILE" ]
+	then
+		MyPid=$(cat $PIDFILE)
+		ProcessTree=$(pstree $MyPid)
+		[ -n "$ProcessTree" ] && RunFlag=1
+	else
+		MyPid=$(ps axu|grep -v grep|grep $NAME|grep $PORT|awk '{print $2}')
+		MyPid=$((MyPid+0)) > /dev/null 2>&1
+		[ $MyPid -ge 1 ] && RunFlag=1
+	fi
+
+	if [ $RunFlag -eq 1 ]
+	then
+		echo "$NAME already running, $MyPid."
+	else
+		echo "$NAME don't running, $MyPid."
+		exit 0
+	fi
+}
+
+
+#/*
+# ************************************
+# ***          主程序开始          ***
+# ************************************
+# */
+
+#/*
+# * 检查nginx执行程序是否存在
+# */
+func_init_env
+func_check_file x $DAEMON
+
+case "$1" in
+	start)
+		echo -n "Starting $DESC: $NAME"
+		d_start
+		echo "..."
+		;;
+	stop)
+		echo -n "Stopping $DESC: $NAME"
+		d_stop
+		echo "..."
+		;;
+	restart)
+		echo "Restarting $DESC: $NAME"
+		[ -f "$PIDFILE" ] && d_stop
+		sleep 1
+		d_start
+		echo "..."
+		;;
+	status)
+		echo "Show current status $DESC: $NAME"
+		d_status
+		echo "..."
+		;;
+	pullup)
+		echo "Pull up $DESC: $NAME"
+		d_pullup
+		echo "..."
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart|status|pullup}" >&2
+		exit 3
+		;;
+esac
+
+exit 0

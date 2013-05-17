@@ -18,7 +18,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # */
 DEBUG=0
 DESC="nginx daemon"
-WORKDIR="/data1/webserver/nginx"
+WORKDIR="/data/webserver/nginx"
 NAME=nginx
 DAEMON=$WORKDIR/sbin/$NAME
 PIDFILE=$WORKDIR/logs/$NAME.pid
@@ -53,19 +53,12 @@ function d_start_safe() {
 }
 
 function d_stop() {
-    if [ -f "$PIDFILE" ]; then
-        ProcessTree=$(pstree $(cat $PIDFILE))
-        [ -n "$ProcessTree" ] && kill -QUIT $(cat $PIDFILE) || echo -n " not running"
-    else
-        MyPid=$(ps axu|grep -v grep|grep $NAME|grep conf|awk '{print $2}')
-        MyPid=$((MyPid+0)) > /dev/null 2>&1
-        [ $MyPid -ge 1 ] && kill -QUIT $MyPid || echo -n " not running"
-    fi
+    $DAEMON -s quit || echo -n " nginx stop failed"
 }
 
 function d_reload() {
     func_check_file f $PIDFILE
-    kill -HUP `cat $PIDFILE` || echo -n " can't reload"
+    $DAEMON -s reload || echo -n " nginx reload failed"
 }
 
 function d_test() {

@@ -1,0 +1,94 @@
+#!/bin/sh
+# redis - this script starts and stops the redis-server daemon
+#
+# chkconfig:   2345 90 10 
+# description:  Redis is a persistent key-value database
+# processname: redis-server
+
+
+OPTS=$1
+Port=$2
+WorkDir="/db/redis2613"
+cd $WorkDir
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+# Source networking configuration.
+. /etc/sysconfig/network
+
+# Check that networking is up.
+[ "$NETWORKING" = "no" ] && exit 0
+
+redis=$WorkDir"/bin/redis-server"
+PROG=$(basename $redis)
+lockfile=/var/lock/subsys/redis_"$Port"
+
+DAEMON_USER="redis"
+PID_FILE=$WorkDir"/logs/redis_${Port}.pid"
+CONF_FILE="redis_${Port}.conf"
+REDIS_CONF_FILE=$WorkDir"/etc/"$CONF_FILE
+
+
+do_start() {
+    [ -x $redis ] || exit 5
+    [ -f $REDIS_CONF_FILE ] || exit 6
+    echo -n $"Starting $PROG: "
+    daemon --user=$DAEMON_USER $redis $REDIS_CONF_FILE
+    retval=$?
+    echo
+    [ $retval -eq 0 ] && touch $lockfile
+    return $retval
+}
+
+do_stop() {
+    echo -n $"Stopping $PROG: "
+    if [ -f "$PID_FILE" ]; then
+        killproc -p $PID_FILE $PROG 
+    else
+        MyPid=$(ps axu|grep -v grep|grep $PROG|grep $CONF_FILE|awk '{print $2}')
+        MyPid=$((MyPid+0)) > /dev/null 2>&1
+        [ $MyPid -ge 1 ] && kill -TERM $MyPid 
+        RC=$?
+        [ "$RC" -eq 0 ] && success $"$PROG stop success" || failure $"$PROG stop failure"
+    fi
+    retval=$?
+    echo
+    [ $retval -eq 0 ] && rm -f $lockfile
+    return $retval
+}
+
+do_restart() {
+    do_stop
+    do_start
+}
+
+rh_status() {
+#    [ -f "$PID_FILE" ] && status -p $PID_FILE $PROG || status $PROG
+    [ -f "$PID_FILE" ] && status -p $PID_FILE $PROG
+}
+
+rh_status_q() {
+    rh_status >/dev/null 2>&1
+}
+
+
+case "$OPTS" in
+    start)
+        rh_status_q && exit 0
+        do_start
+        ;;
+    stop)
+        rh_status_q || exit 0
+        do_stop
+        ;;
+    restart)
+        do_restart
+        ;;
+    status)
+        rh_status
+        ;;
+    *)
+        echo $"Usage: $0 {start|stop|status|restart}"
+        exit 2
+esac
