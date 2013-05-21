@@ -17,13 +17,11 @@ class procStatus(object):
     @staticmethod
     def status():
         _tmp = ""
-        _name = ""
         if len(sys.argv) == 1 :
             _name = str(sys.argv[0])
         else:
             for s in sys.argv:
                 _tmp += s + "\\s+"
-            #    _name += s + " "
             _name = _tmp[0:-3]
         _pid_cmd = "ps -ef|grep -P '" + _name + "'|grep -v grep"
         _pid = popen( _pid_cmd ).readlines()
